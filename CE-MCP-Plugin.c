@@ -166,13 +166,14 @@ BOOL ParseAICommand(char* buffer, AICommand* cmd) {
         return FALSE;
     }
     
-    char* token = strtok(buffer, ":");
+    char* context = NULL;
+    char* token = strtok_s(buffer, ":", &context);
     if (token == NULL) {
         return FALSE;
     }
     strncpy_s(cmd->command, sizeof(cmd->command), token, _TRUNCATE);
     
-    token = strtok(NULL, "");
+    token = strtok_s(NULL, "", &context);
     if (token != NULL) {
         strncpy_s(cmd->parameters, sizeof(cmd->parameters), token, _TRUNCATE);
     } else {
@@ -247,7 +248,7 @@ BOOL WriteMemory(UINT_PTR address, const char* valueStr, const char* type) {
         DWORD value = (DWORD)strtoul(valueStr, NULL, 0);
         result = writeMem(*Exported.OpenedProcessHandle, (LPVOID)address, &value, 4, &bytesWritten);
     } else if (strcmp(type, "float") == 0 || strcmp(type, "FLOAT") == 0) {
-        float value = (float)atof(valueStr);
+        float value = strtof(valueStr, NULL);
         result = writeMem(*Exported.OpenedProcessHandle, (LPVOID)address, &value, 4, &bytesWritten);
     } else if (strcmp(type, "double") == 0 || strcmp(type, "DOUBLE") == 0) {
         double value = atof(valueStr);
@@ -273,7 +274,7 @@ void ExecuteAICommand(AICommand* cmd) {
         sprintf_s(message, sizeof(message), "AutoAssemble result: %d", result);
         Exported.ShowMessage(message);
     } else if (strcmp(cmd->command, "SPEEDHACK") == 0) {
-        float speed = atof(cmd->parameters);
+        float speed = strtof(cmd->parameters, NULL);
         BOOL result = Exported.speedhack_setSpeed(speed);
         sprintf_s(message, sizeof(message), "SpeedHack result: %d, Speed: %.2f", result, speed);
         Exported.ShowMessage(message);
@@ -285,11 +286,12 @@ void ExecuteAICommand(AICommand* cmd) {
         Exported.ShowMessage("Process unpaused");
     } else if (strcmp(cmd->command, "WRITE_MEMORY") == 0) {
         // 格式：WRITE_MEMORY:address,value,type
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
-            char* valueStr = strtok(NULL, ",");
+            char* valueStr = strtok_s(NULL, ",", &context);
             if (valueStr != NULL) {
-                char* typeStr = strtok(NULL, ",");
+                char* typeStr = strtok_s(NULL, ",", &context);
                 if (typeStr != NULL) {
                     UINT_PTR address = ParseAddress(addressStr);
                     BOOL result = WriteMemory(address, valueStr, typeStr);
@@ -307,9 +309,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "READ_MEMORY") == 0) {
         // 格式：READ_MEMORY:address,type
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
-            char* typeStr = strtok(NULL, ",");
+            char* typeStr = strtok_s(NULL, ",", &context);
             if (typeStr != NULL) {
                 UINT_PTR address = ParseAddress(addressStr);
                 char buffer[256];
@@ -353,9 +356,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "ASSEMBLE") == 0) {
         // 格式：ASSEMBLE:address,instruction
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
-            char* instruction = strtok(NULL, ",");
+            char* instruction = strtok_s(NULL, ",", &context);
             if (instruction != NULL) {
                 UINT_PTR address = ParseAddress(addressStr);
                 BYTE output[16]; // 最大支持16字节指令
@@ -385,7 +389,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "DISASSEMBLE") == 0) {
         // 格式：DISASSEMBLE:address
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
             UINT_PTR address = ParseAddress(addressStr);
             char output[256];
@@ -404,7 +409,8 @@ void ExecuteAICommand(AICommand* cmd) {
     } else if (strcmp(cmd->command, "DISASSEMBLE_EX") == 0) {
         // 格式：DISASSEMBLE_EX:address
         // 使用增强的反汇编功能，提供更详细的指令信息
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
             UINT_PTR address = ParseAddress(addressStr);
             char output[512];
@@ -422,11 +428,12 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "CHANGE_REGISTER") == 0) {
         // 格式：CHANGE_REGISTER:address,register_name,value
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
-            char* regName = strtok(NULL, ",");
+            char* regName = strtok_s(NULL, ",", &context);
             if (regName != NULL) {
-                char* valueStr = strtok(NULL, ",");
+                char* valueStr = strtok_s(NULL, ",", &context);
                 if (valueStr != NULL) {
                     UINT_PTR address = ParseAddress(addressStr);
                     UINT_PTR value = ParseAddress(valueStr);
@@ -496,9 +503,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "INJECT_DLL") == 0) {
         // 格式：INJECT_DLL:dll_path,optional_function_name
-        char* dllPath = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* dllPath = strtok_s(cmd->parameters, ",", &context);
         if (dllPath != NULL) {
-            char* funcName = strtok(NULL, ",");
+            char* funcName = strtok_s(NULL, ",", &context);
             if (funcName == NULL) {
                 funcName = "";
             }
@@ -512,9 +520,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "FREEZE_MEMORY") == 0) {
         // 格式：FREEZE_MEMORY:address,size
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
-            char* sizeStr = strtok(NULL, ",");
+            char* sizeStr = strtok_s(NULL, ",", &context);
             if (sizeStr != NULL) {
                 UINT_PTR address = ParseAddress(addressStr);
                 int size = atoi(sizeStr);
@@ -531,7 +540,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "UNFREEZE_MEMORY") == 0) {
         // 格式：UNFREEZE_MEMORY:freeze_id
-        char* freezeIDStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* freezeIDStr = strtok_s(cmd->parameters, ",", &context);
         if (freezeIDStr != NULL) {
             int freezeID = atoi(freezeIDStr);
             BOOL result = Exported.UnfreezeMem(freezeID);
@@ -557,7 +567,8 @@ void ExecuteAICommand(AICommand* cmd) {
         Exported.ShowMessage(message);
     } else if (strcmp(cmd->command, "GET_PROCESS_ID") == 0) {
         // 格式：GET_PROCESS_ID:process_name
-        char* processName = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* processName = strtok_s(cmd->parameters, ",", &context);
         if (processName != NULL) {
             DWORD processID = Exported.getProcessIDFromProcessName(processName);
             sprintf_s(message, sizeof(message), "GET_PROCESS_ID result: Process Name: %s, Process ID: %d", 
@@ -568,7 +579,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "OPEN_PROCESS") == 0) {
         // 格式：OPEN_PROCESS:process_id
-        char* pidStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* pidStr = strtok_s(cmd->parameters, ",", &context);
         if (pidStr != NULL) {
             DWORD pid = atoi(pidStr);
             HANDLE processHandle = Exported.openProcessEx(pid);
@@ -580,9 +592,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "GET_ADDRESS_FROM_POINTER") == 0) {
         // 格式：GET_ADDRESS_FROM_POINTER:base_address,offset_count,offset1,offset2,...
-        char* baseAddrStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* baseAddrStr = strtok_s(cmd->parameters, ",", &context);
         if (baseAddrStr != NULL) {
-            char* offsetCountStr = strtok(NULL, ",");
+            char* offsetCountStr = strtok_s(NULL, ",", &context);
             if (offsetCountStr != NULL) {
                 UINT_PTR baseAddress = ParseAddress(baseAddrStr);
                 int offsetCount = atoi(offsetCountStr);
@@ -593,7 +606,7 @@ void ExecuteAICommand(AICommand* cmd) {
                     BOOL valid = TRUE;
                     
                     for (i = 0; i < offsetCount; i++) {
-                        char* offsetStr = strtok(NULL, ",");
+                        char* offsetStr = strtok_s(NULL, ",", &context);
                         if (offsetStr != NULL) {
                             offsets[i] = (int)strtol(offsetStr, NULL, 0);
                         } else {
@@ -621,7 +634,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "ADDRESS_TO_NAME") == 0) {
         // 格式：ADDRESS_TO_NAME:address
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
             UINT_PTR address = ParseAddress(addressStr);
             char name[256];
@@ -637,7 +651,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "NAME_TO_ADDRESS") == 0) {
         // 格式：NAME_TO_ADDRESS:name
-        char* name = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* name = strtok_s(cmd->parameters, ",", &context);
         if (name != NULL) {
             UINT_PTR address;
             BOOL result = Exported.sym_nameToAddress(name, &address);
@@ -652,7 +667,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "PREVIOUS_OPCODE") == 0) {
         // 格式：PREVIOUS_OPCODE:address
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
             UINT_PTR address = ParseAddress(addressStr);
             DWORD prevAddr = Exported.previousOpcode(address);
@@ -663,7 +679,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "NEXT_OPCODE") == 0) {
         // 格式：NEXT_OPCODE:address
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
             UINT_PTR address = ParseAddress(addressStr);
             DWORD nextAddr = Exported.nextOpcode(address);
@@ -675,11 +692,12 @@ void ExecuteAICommand(AICommand* cmd) {
     } else if (strcmp(cmd->command, "SET_BREAKPOINT") == 0) {
         // 格式：SET_BREAKPOINT:address,size,trigger
         // trigger: 0=execute, 1=write, 2=read
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
-            char* sizeStr = strtok(NULL, ",");
+            char* sizeStr = strtok_s(NULL, ",", &context);
             if (sizeStr != NULL) {
-                char* triggerStr = strtok(NULL, ",");
+                char* triggerStr = strtok_s(NULL, ",", &context);
                 if (triggerStr != NULL) {
                     UINT_PTR address = ParseAddress(addressStr);
                     int size = atoi(sizeStr);
@@ -700,7 +718,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "REMOVE_BREAKPOINT") == 0) {
         // 格式：REMOVE_BREAKPOINT:address
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
             UINT_PTR address = ParseAddress(addressStr);
             BOOL result = Exported.debug_removeBreakpoint(address);
@@ -712,7 +731,8 @@ void ExecuteAICommand(AICommand* cmd) {
     } else if (strcmp(cmd->command, "CONTINUE_FROM_BREAKPOINT") == 0) {
         // 格式：CONTINUE_FROM_BREAKPOINT:continue_option
         // continue_option: 0=run, 1=step into, 2=step over, 3=step to return
-        char* optionStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* optionStr = strtok_s(cmd->parameters, ",", &context);
         if (optionStr != NULL) {
             int option = atoi(optionStr);
             BOOL result = Exported.debug_continueFromBreakpoint(option);
@@ -728,7 +748,8 @@ void ExecuteAICommand(AICommand* cmd) {
         Exported.ShowMessage(message);
     } else if (strcmp(cmd->command, "GET_TABLE_ENTRY") == 0) {
         // 格式：GET_TABLE_ENTRY:description
-        char* description = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* description = strtok_s(cmd->parameters, ",", &context);
         if (description != NULL) {
             PVOID memrec = Exported.getTableEntry(description);
             sprintf_s(message, sizeof(message), "GET_TABLE_ENTRY result: Description = %s, MemRec pointer = 0x%p", description, memrec);
@@ -738,9 +759,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_SETDESCRIPTION") == 0) {
         // 格式：MEMREC_SETDESCRIPTION:memrec_pointer,description
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
-            char* description = strtok(NULL, ",");
+            char* description = strtok_s(NULL, ",", &context);
             if (description != NULL) {
                 PVOID memrec = (PVOID)ParseAddress(memrecStr);
                 BOOL result = Exported.memrec_setDescription(memrec, description);
@@ -754,7 +776,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_GETDESCRIPTION") == 0) {
         // 格式：MEMREC_GETDESCRIPTION:memrec_pointer
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
             PVOID memrec = (PVOID)ParseAddress(memrecStr);
             char* description = Exported.memrec_getDescription(memrec);
@@ -765,7 +788,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_GETADDRESS") == 0) {
         // 格式：MEMREC_GETADDRESS:memrec_pointer
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
             PVOID memrec = (PVOID)ParseAddress(memrecStr);
             UINT_PTR address;
@@ -783,11 +807,12 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_SETADDRESS") == 0) {
         // 格式：MEMREC_SETADDRESS:memrec_pointer,address,offset_count,offset1,offset2,...
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
-            char* addressStr = strtok(NULL, ",");
+            char* addressStr = strtok_s(NULL, ",", &context);
             if (addressStr != NULL) {
-                char* offsetCountStr = strtok(NULL, ",");
+                char* offsetCountStr = strtok_s(NULL, ",", &context);
                 if (offsetCountStr != NULL) {
                     PVOID memrec = (PVOID)ParseAddress(memrecStr);
                     UINT_PTR address = ParseAddress(addressStr);
@@ -796,7 +821,7 @@ void ExecuteAICommand(AICommand* cmd) {
                     if (offsetCount >= 0 && offsetCount <= 16) {
                         DWORD offsets[16] = {0};
                         for (int i = 0; i < offsetCount; i++) {
-                            char* offsetStr = strtok(NULL, ",");
+                            char* offsetStr = strtok_s(NULL, ",", &context);
                             if (offsetStr != NULL) {
                                 offsets[i] = (DWORD)strtol(offsetStr, NULL, 0);
                             }
@@ -819,7 +844,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_GETTYPE") == 0) {
         // 格式：MEMREC_GETTYPE:memrec_pointer
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
             PVOID memrec = (PVOID)ParseAddress(memrecStr);
             int vtype = Exported.memrec_getType(memrec);
@@ -831,9 +857,10 @@ void ExecuteAICommand(AICommand* cmd) {
     } else if (strcmp(cmd->command, "MEMREC_SETTYPE") == 0) {
         // 格式：MEMREC_SETTYPE:memrec_pointer,vtype
         // vtype: 0=byte, 1=word, 2=dword, 3=float, 4=double, 5=bit, 6=int64, 7=string
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
-            char* vtypeStr = strtok(NULL, ",");
+            char* vtypeStr = strtok_s(NULL, ",", &context);
             if (vtypeStr != NULL) {
                 PVOID memrec = (PVOID)ParseAddress(memrecStr);
                 int vtype = atoi(vtypeStr);
@@ -848,7 +875,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_GETVALUE") == 0) {
         // 格式：MEMREC_GETVALUE:memrec_pointer
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
             PVOID memrec = (PVOID)ParseAddress(memrecStr);
             char value[256];
@@ -864,9 +892,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_SETVALUE") == 0) {
         // 格式：MEMREC_SETVALUE:memrec_pointer,value
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
-            char* value = strtok(NULL, ",");
+            char* value = strtok_s(NULL, ",", &context);
             if (value != NULL) {
                 PVOID memrec = (PVOID)ParseAddress(memrecStr);
                 BOOL result = Exported.memrec_setValue(memrec, value);
@@ -880,7 +909,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_GETSCRIPT") == 0) {
         // 格式：MEMREC_GETSCRIPT:memrec_pointer
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
             PVOID memrec = (PVOID)ParseAddress(memrecStr);
             char* script = Exported.memrec_getScript(memrec);
@@ -891,9 +921,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_SETSCRIPT") == 0) {
         // 格式：MEMREC_SETSCRIPT:memrec_pointer,script
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
-            char* script = strtok(NULL, ",");
+            char* script = strtok_s(NULL, ",", &context);
             if (script != NULL) {
                 PVOID memrec = (PVOID)ParseAddress(memrecStr);
                 BOOL result = Exported.memrec_setScript(memrec, script);
@@ -907,7 +938,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_ISFROZEN") == 0) {
         // 格式：MEMREC_ISFROZEN:memrec_pointer
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
             PVOID memrec = (PVOID)ParseAddress(memrecStr);
             BOOL isFrozen = Exported.memrec_isfrozen(memrec);
@@ -919,9 +951,10 @@ void ExecuteAICommand(AICommand* cmd) {
     } else if (strcmp(cmd->command, "MEMREC_FREEZE") == 0) {
         // 格式：MEMREC_FREEZE:memrec_pointer,direction
         // direction: 0=frozen, 1=increase, 2=decrease
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
-            char* directionStr = strtok(NULL, ",");
+            char* directionStr = strtok_s(NULL, ",", &context);
             if (directionStr != NULL) {
                 PVOID memrec = (PVOID)ParseAddress(memrecStr);
                 int direction = atoi(directionStr);
@@ -936,7 +969,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_UNFREEZE") == 0) {
         // 格式：MEMREC_UNFREEZE:memrec_pointer
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
             PVOID memrec = (PVOID)ParseAddress(memrecStr);
             BOOL result = Exported.memrec_unfreeze(memrec);
@@ -947,9 +981,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_SETCOLOR") == 0) {
         // 格式：MEMREC_SETCOLOR:memrec_pointer,color
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
-            char* colorStr = strtok(NULL, ",");
+            char* colorStr = strtok_s(NULL, ",", &context);
             if (colorStr != NULL) {
                 PVOID memrec = (PVOID)ParseAddress(memrecStr);
                 DWORD color = (DWORD)strtol(colorStr, NULL, 0);
@@ -964,9 +999,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_APPENDTOENTRY") == 0) {
         // 格式：MEMREC_APPENDTOENTRY:memrec_pointer1,memrec_pointer2
-        char* memrecStr1 = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr1 = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr1 != NULL) {
-            char* memrecStr2 = strtok(NULL, ",");
+            char* memrecStr2 = strtok_s(NULL, ",", &context);
             if (memrecStr2 != NULL) {
                 PVOID memrec1 = (PVOID)ParseAddress(memrecStr1);
                 PVOID memrec2 = (PVOID)ParseAddress(memrecStr2);
@@ -981,7 +1017,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "MEMREC_DELETE") == 0) {
         // 格式：MEMREC_DELETE:memrec_pointer
-        char* memrecStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* memrecStr = strtok_s(cmd->parameters, ",", &context);
         if (memrecStr != NULL) {
             PVOID memrec = (PVOID)ParseAddress(memrecStr);
             BOOL result = Exported.memrec_delete(memrec);
@@ -1014,11 +1051,12 @@ void ExecuteAICommand(AICommand* cmd) {
         // 格式：MESSAGE_DIALOG:message,messagetype,buttoncombination
         // messagetype: 0=mtWarning, 1=mtError, 2=mtInformation, 3=mtConfirmation
         // buttoncombination: 0=mbOK, 1=mbOKCancel, 2=mbYesNo, 3=mbYesNoCancel
-        char* msgText = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* msgText = strtok_s(cmd->parameters, ",", &context);
         if (msgText != NULL) {
-            char* msgTypeStr = strtok(NULL, ",");
+            char* msgTypeStr = strtok_s(NULL, ",", &context);
             if (msgTypeStr != NULL) {
-                char* btnComboStr = strtok(NULL, ",");
+                char* btnComboStr = strtok_s(NULL, ",", &context);
                 if (btnComboStr != NULL) {
                     int msgType = atoi(msgTypeStr);
                     int btnCombo = atoi(btnComboStr);
@@ -1036,7 +1074,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "LOAD_MODULE") == 0) {
         // 格式：LOAD_MODULE:module_path
-        char* modulePath = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* modulePath = strtok_s(cmd->parameters, ",", &context);
         if (modulePath != NULL) {
             char exportList[4096];
             int maxSize = sizeof(exportList);
@@ -1052,11 +1091,12 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "GENERATE_API_HOOK_SCRIPT") == 0) {
         // 格式：GENERATE_API_HOOK_SCRIPT:address,addresstojumpto,addresstogetnewcalladdress
-        char* addressStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
-            char* jumpToAddrStr = strtok(NULL, ",");
+            char* jumpToAddrStr = strtok_s(NULL, ",", &context);
             if (jumpToAddrStr != NULL) {
-                char* newCallAddrStr = strtok(NULL, ",");
+                char* newCallAddrStr = strtok_s(NULL, ",", &context);
                 if (newCallAddrStr != NULL) {
                     char script[4096];
                     BOOL result = Exported.sym_generateAPIHookScript(addressStr, jumpToAddrStr, newCallAddrStr, script, sizeof(script));
@@ -1078,7 +1118,8 @@ void ExecuteAICommand(AICommand* cmd) {
     } else if (strcmp(cmd->command, "DEBUG_PROCESS") == 0) {
         // 格式：DEBUG_PROCESS:debuggerinterface
         // debuggerinterface: 0=windows debugger, 1=veh debugger, 2=kernel debugger
-        char* debuggerInterfaceStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* debuggerInterfaceStr = strtok_s(cmd->parameters, ",", &context);
         if (debuggerInterfaceStr != NULL) {
             int debuggerInterface = atoi(debuggerInterfaceStr);
             DWORD result = Exported.debugProcessEx(debuggerInterface);
@@ -1089,7 +1130,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "AA_ADD_COMMAND") == 0) {
         // 格式：AA_ADD_COMMAND:command
-        char* command = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* command = strtok_s(cmd->parameters, ",", &context);
         if (command != NULL) {
             Exported.aa_AddExtraCommand(command);
             sprintf_s(message, sizeof(message), "AA_ADD_COMMAND executed: %s", command);
@@ -1099,7 +1141,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "AA_DEL_COMMAND") == 0) {
         // 格式：AA_DEL_COMMAND:command
-        char* command = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* command = strtok_s(cmd->parameters, ",", &context);
         if (command != NULL) {
             Exported.aa_RemoveExtraCommand(command);
             sprintf_s(message, sizeof(message), "AA_DEL_COMMAND executed: %s", command);
@@ -1114,7 +1157,8 @@ void ExecuteAICommand(AICommand* cmd) {
         Exported.ShowMessage(message);
     } else if (strcmp(cmd->command, "CREATE_PANEL") == 0) {
         // 格式：CREATE_PANEL:owner_pointer
-        char* ownerStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* ownerStr = strtok_s(cmd->parameters, ",", &context);
         if (ownerStr != NULL) {
             PVOID owner = (PVOID)ParseAddress(ownerStr);
             PVOID panel = Exported.createPanel(owner);
@@ -1125,7 +1169,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "CREATE_LABEL") == 0) {
         // 格式：CREATE_LABEL:owner_pointer
-        char* ownerStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* ownerStr = strtok_s(cmd->parameters, ",", &context);
         if (ownerStr != NULL) {
             PVOID owner = (PVOID)ParseAddress(ownerStr);
             PVOID label = Exported.createLabel(owner);
@@ -1136,7 +1181,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "CREATE_EDIT") == 0) {
         // 格式：CREATE_EDIT:owner_pointer
-        char* ownerStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* ownerStr = strtok_s(cmd->parameters, ",", &context);
         if (ownerStr != NULL) {
             PVOID owner = (PVOID)ParseAddress(ownerStr);
             PVOID edit = Exported.createEdit(owner);
@@ -1147,7 +1193,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "CREATE_BUTTON") == 0) {
         // 格式：CREATE_BUTTON:owner_pointer
-        char* ownerStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* ownerStr = strtok_s(cmd->parameters, ",", &context);
         if (ownerStr != NULL) {
             PVOID owner = (PVOID)ParseAddress(ownerStr);
             PVOID button = Exported.createButton(owner);
@@ -1158,7 +1205,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "CREATE_IMAGE") == 0) {
         // 格式：CREATE_IMAGE:owner_pointer
-        char* ownerStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* ownerStr = strtok_s(cmd->parameters, ",", &context);
         if (ownerStr != NULL) {
             PVOID owner = (PVOID)ParseAddress(ownerStr);
             PVOID image = Exported.createImage(owner);
@@ -1169,9 +1217,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "SET_CAPTION") == 0) {
         // 格式：SET_CAPTION:control_pointer,caption
-        char* controlStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* controlStr = strtok_s(cmd->parameters, ",", &context);
         if (controlStr != NULL) {
-            char* caption = strtok(NULL, ",");
+            char* caption = strtok_s(NULL, ",", &context);
             if (caption != NULL) {
                 PVOID control = (PVOID)ParseAddress(controlStr);
                 Exported.control_setCaption(control, caption);
@@ -1185,7 +1234,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "GET_CAPTION") == 0) {
         // 格式：GET_CAPTION:control_pointer
-        char* controlStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* controlStr = strtok_s(cmd->parameters, ",", &context);
         if (controlStr != NULL) {
             PVOID control = (PVOID)ParseAddress(controlStr);
             char caption[256];
@@ -1201,11 +1251,12 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "SET_POSITION") == 0) {
         // 格式：SET_POSITION:control_pointer,x,y
-        char* controlStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* controlStr = strtok_s(cmd->parameters, ",", &context);
         if (controlStr != NULL) {
-            char* xStr = strtok(NULL, ",");
+            char* xStr = strtok_s(NULL, ",", &context);
             if (xStr != NULL) {
-                char* yStr = strtok(NULL, ",");
+                char* yStr = strtok_s(NULL, ",", &context);
                 if (yStr != NULL) {
                     PVOID control = (PVOID)ParseAddress(controlStr);
                     int x = atoi(xStr);
@@ -1224,7 +1275,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "GET_POSITION") == 0) {
         // 格式：GET_POSITION:control_pointer
-        char* controlStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* controlStr = strtok_s(cmd->parameters, ",", &context);
         if (controlStr != NULL) {
             PVOID control = (PVOID)ParseAddress(controlStr);
             int x = Exported.control_getX(control);
@@ -1236,11 +1288,12 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "SET_SIZE") == 0) {
         // 格式：SET_SIZE:control_pointer,width,height
-        char* controlStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* controlStr = strtok_s(cmd->parameters, ",", &context);
         if (controlStr != NULL) {
-            char* widthStr = strtok(NULL, ",");
+            char* widthStr = strtok_s(NULL, ",", &context);
             if (widthStr != NULL) {
-                char* heightStr = strtok(NULL, ",");
+                char* heightStr = strtok_s(NULL, ",", &context);
                 if (heightStr != NULL) {
                     PVOID control = (PVOID)ParseAddress(controlStr);
                     int width = atoi(widthStr);
@@ -1259,7 +1312,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "GET_SIZE") == 0) {
         // 格式：GET_SIZE:control_pointer
-        char* controlStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* controlStr = strtok_s(cmd->parameters, ",", &context);
         if (controlStr != NULL) {
             PVOID control = (PVOID)ParseAddress(controlStr);
             int width = Exported.control_getWidth(control);
@@ -1271,7 +1325,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "DESTROY_OBJECT") == 0) {
         // 格式：DESTROY_OBJECT:object_pointer
-        char* objectStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* objectStr = strtok_s(cmd->parameters, ",", &context);
         if (objectStr != NULL) {
             PVOID object = (PVOID)ParseAddress(objectStr);
             Exported.object_destroy(object);
@@ -1282,7 +1337,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "FORM_CENTER_SCREEN") == 0) {
         // 格式：FORM_CENTER_SCREEN:form_pointer
-        char* formStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* formStr = strtok_s(cmd->parameters, ",", &context);
         if (formStr != NULL) {
             PVOID form = (PVOID)ParseAddress(formStr);
             Exported.form_centerScreen(form);
@@ -1293,7 +1349,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "FORM_HIDE") == 0) {
         // 格式：FORM_HIDE:form_pointer
-        char* formStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* formStr = strtok_s(cmd->parameters, ",", &context);
         if (formStr != NULL) {
             PVOID form = (PVOID)ParseAddress(formStr);
             Exported.form_hide(form);
@@ -1304,7 +1361,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "FORM_SHOW") == 0) {
         // 格式：FORM_SHOW:form_pointer
-        char* formStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* formStr = strtok_s(cmd->parameters, ",", &context);
         if (formStr != NULL) {
             PVOID form = (PVOID)ParseAddress(formStr);
             Exported.form_show(form);
@@ -1315,9 +1373,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "IMAGE_LOAD_IMAGE_FROM_FILE") == 0) {
         // 格式：IMAGE_LOAD_IMAGE_FROM_FILE:image_pointer,filename
-        char* imageStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* imageStr = strtok_s(cmd->parameters, ",", &context);
         if (imageStr != NULL) {
-            char* filename = strtok(NULL, ",");
+            char* filename = strtok_s(NULL, ",", &context);
             if (filename != NULL) {
                 PVOID image = (PVOID)ParseAddress(imageStr);
                 BOOL result = Exported.image_loadImageFromFile(image, filename);
@@ -1331,9 +1390,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "IMAGE_TRANSPARENT") == 0) {
         // 格式：IMAGE_TRANSPARENT:image_pointer,transparent
-        char* imageStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* imageStr = strtok_s(cmd->parameters, ",", &context);
         if (imageStr != NULL) {
-            char* transparentStr = strtok(NULL, ",");
+            char* transparentStr = strtok_s(NULL, ",", &context);
             if (transparentStr != NULL) {
                 PVOID image = (PVOID)ParseAddress(imageStr);
                 BOOL transparent = (atoi(transparentStr) != 0);
@@ -1348,9 +1408,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "IMAGE_STRETCH") == 0) {
         // 格式：IMAGE_STRETCH:image_pointer,stretch
-        char* imageStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* imageStr = strtok_s(cmd->parameters, ",", &context);
         if (imageStr != NULL) {
-            char* stretchStr = strtok(NULL, ",");
+            char* stretchStr = strtok_s(NULL, ",", &context);
             if (stretchStr != NULL) {
                 PVOID image = (PVOID)ParseAddress(imageStr);
                 BOOL stretch = (atoi(stretchStr) != 0);
@@ -1365,7 +1426,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "CREATE_TIMER") == 0) {
         // 格式：CREATE_TIMER:owner_pointer
-        char* ownerStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* ownerStr = strtok_s(cmd->parameters, ",", &context);
         if (ownerStr != NULL) {
             PVOID owner = (PVOID)ParseAddress(ownerStr);
             PVOID timer = Exported.createTimer(owner);
@@ -1376,9 +1438,10 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "TIMER_SET_INTERVAL") == 0) {
         // 格式：TIMER_SET_INTERVAL:timer_pointer,interval
-        char* timerStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* timerStr = strtok_s(cmd->parameters, ",", &context);
         if (timerStr != NULL) {
-            char* intervalStr = strtok(NULL, ",");
+            char* intervalStr = strtok_s(NULL, ",", &context);
             if (intervalStr != NULL) {
                 PVOID timer = (PVOID)ParseAddress(timerStr);
                 int interval = atoi(intervalStr);
@@ -1393,7 +1456,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "CREATE_MEMO") == 0) {
         // 格式：CREATE_MEMO:owner_pointer
-        char* ownerStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* ownerStr = strtok_s(cmd->parameters, ",", &context);
         if (ownerStr != NULL) {
             PVOID owner = (PVOID)ParseAddress(ownerStr);
             PVOID memo = Exported.createMemo(owner);
@@ -1404,7 +1468,8 @@ void ExecuteAICommand(AICommand* cmd) {
         }
     } else if (strcmp(cmd->command, "CREATE_GROUP_BOX") == 0) {
         // 格式：CREATE_GROUP_BOX:owner_pointer
-        char* ownerStr = strtok(cmd->parameters, ",");
+        char* context = NULL;
+        char* ownerStr = strtok_s(cmd->parameters, ",", &context);
         if (ownerStr != NULL) {
             PVOID owner = (PVOID)ParseAddress(ownerStr);
             PVOID groupbox = Exported.createGroupBox(owner);
@@ -1480,7 +1545,7 @@ void __stdcall mainmenuplugin(void) {
     return;
 }
 
-BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
+    BOOL APIENTRY DllMain(HINSTANCE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     switch (ul_reason_for_call) {
         case DLL_PROCESS_ATTACH:
             // Initialize Winsock when DLL is loaded
