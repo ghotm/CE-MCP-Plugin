@@ -585,7 +585,7 @@ void ExecuteAICommand(AICommand* cmd) {
             DWORD pid = atoi(pidStr);
             DWORD openResult = Exported.openProcessEx(pid);
             sprintf_s(message, sizeof(message), "OPEN_PROCESS result: Process ID: %d, Handle: 0x%p", 
-                pid, processHandle);
+                pid, openResult);
             Exported.ShowMessage(message);
         } else {
             Exported.ShowMessage("Error: Missing process_id parameter for OPEN_PROCESS");
