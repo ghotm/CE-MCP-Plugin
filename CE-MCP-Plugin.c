@@ -583,7 +583,7 @@ void ExecuteAICommand(AICommand* cmd) {
         char* pidStr = strtok_s(cmd->parameters, ",", &context);
         if (pidStr != NULL) {
             DWORD pid = atoi(pidStr);
-            HANDLE processHandle = Exported.openProcessEx(pid);
+            DWORD openResult = Exported.openProcessEx(pid);
             sprintf_s(message, sizeof(message), "OPEN_PROCESS result: Process ID: %d, Handle: 0x%p", 
                 pid, processHandle);
             Exported.ShowMessage(message);
