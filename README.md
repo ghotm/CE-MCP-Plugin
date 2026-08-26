@@ -14,6 +14,7 @@ CE-MCP-Plugin是一个为Cheat Engine开发的AI集成插件，允许Cheat Engin
 - 支持通过Lua脚本向AI发送命令
 - 异步通信设计，不阻塞Cheat Engine主界面
 
+
 ### 指令支持
 
 本插件支持**75个命令**，涵盖以下功能类别：
