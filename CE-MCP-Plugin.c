@@ -671,7 +671,7 @@ void ExecuteAICommand(AICommand* cmd) {
         char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
             UINT_PTR address = ParseAddress(addressStr);
-            DWORD prevAddr = Exported.previousOpcode(address);
+            DWORD prevAddr = Exported.previousOpcode((DWORD)address);
             sprintf_s(message, sizeof(message), "PREVIOUS_OPCODE result: Current: 0x%IX, Previous: 0x%IX", address, prevAddr);
             Exported.ShowMessage(message);
         } else {
@@ -683,7 +683,7 @@ void ExecuteAICommand(AICommand* cmd) {
         char* addressStr = strtok_s(cmd->parameters, ",", &context);
         if (addressStr != NULL) {
             UINT_PTR address = ParseAddress(addressStr);
-            DWORD nextAddr = Exported.nextOpcode(address);
+            DWORD nextAddr = Exported.nextOpcode((DWORD)address);
             sprintf_s(message, sizeof(message), "NEXT_OPCODE result: Current: 0x%IX, Next: 0x%IX", address, nextAddr);
             Exported.ShowMessage(message);
         } else {
