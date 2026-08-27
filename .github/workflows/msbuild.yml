@@ -42,65 +42,14 @@ jobs:
         vs-version: ${{ env.VISUAL_STUDIO_VERSION }}
         msbuild-architecture: ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
 
-    - name: Build Lua 5.3 static libraries
+    - name: Verify Lua import libraries
       shell: pwsh
       run: |
-        $workspace = $env:GITHUB_WORKSPACE
-        $libsDir = Join-Path $workspace 'libs'
-        $luaSrcDir = Join-Path $env:RUNNER_TEMP 'lua-5.3.6'
-        $luaSrcZip = Join-Path $env:RUNNER_TEMP 'lua-5.3.6.tar.gz'
-        
-        if (-not (Test-Path $libsDir)) { New-Item -ItemType Directory -Path $libsDir | Out-Null }
-        if (-not (Test-Path $luaSrcDir)) { New-Item -ItemType Directory -Path $luaSrcDir | Out-Null }
-        
-        Write-Host 'Downloading Lua 5.3.6 source code...'
-        Invoke-WebRequest -Uri 'https://www.lua.org/ftp/lua-5.3.6.tar.gz' -OutFile $luaSrcZip -UseBasicParsing
-        tar -xzf $luaSrcZip -C $env:RUNNER_TEMP
-        
-        Write-Host 'Building Lua 5.3.6 for Win32...'
-        $luaSrcPath = Join-Path $env:RUNNER_TEMP 'lua-5.3.6\src'
-        Push-Location $luaSrcPath
-        
-        # Find Visual Studio installation
-        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-        if (Test-Path $vswhere) {
-          $vsPath = & $vswhere -latest -property installationPath
-          $vcvars32 = Join-Path $vsPath 'VC\Auxiliary\Build\vcvars32.bat'
-          $vcvars64 = Join-Path $vsPath 'VC\Auxiliary\Build\vcvars64.bat'
-        } else {
-          # Fallback to common paths
-          $vcvars32 = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars32.bat"
-          $vcvars64 = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          if (-not (Test-Path $vcvars32)) {
-            $vcvars32 = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars32.bat"
-            $vcvars64 = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
-          }
-          if (-not (Test-Path $vcvars32)) {
-            $vcvars32 = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars32.bat"
-            $vcvars64 = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-          }
-        }
-        
-        Write-Host "Using vcvars32: $vcvars32"
-        Write-Host "Using vcvars64: $vcvars64"
-        
-        # 根据构建配置选择 CRT 运行时（Debug=/MTd，Release=/MT），避免 Debug 构建时 LNK4098 CRT 冲突
-        $crtFlag = if ('${{ env.BUILD_CONFIGURATION }}' -eq 'Debug') { '/MTd' } else { '/MT' }
-        Write-Host "Using CRT flag: $crtFlag for configuration ${{ env.BUILD_CONFIGURATION }}"
-        
-        # Build Win32 static library
-        cmd /c ('"' + $vcvars32 + '" && cl ' + $crtFlag + ' /O2 /c /DLUA_BUILD_AS_DLL *.c && lib /OUT:lua53-static.lib *.obj && copy lua53-static.lib "' + $libsDir + '\lua53-32.lib"')
-        
-        # Build x64 static library
-        Write-Host 'Building Lua 5.3.6 for x64...'
-        cmd /c ('"' + $vcvars64 + '" && cl ' + $crtFlag + ' /O2 /c /DLUA_BUILD_AS_DLL *.c && lib /OUT:lua53-static.lib *.obj && copy lua53-static.lib "' + $libsDir + '\lua53-64.lib"')
-        
-        Pop-Location
-        
-        # Validate built files
-        if (-not (Test-Path (Join-Path $libsDir 'lua53-32.lib'))) { Write-Error "Failed to build lua53-32.lib"; exit 1 }
-        if (-not (Test-Path (Join-Path $libsDir 'lua53-64.lib'))) { Write-Error "Failed to build lua53-64.lib"; exit 1 }
-        
+        # 插件链接 CE 官方分发的 Lua 导入库（动态导入 CE 进程内的 lua53-32.dll / lua53-64.dll）
+        # 不再自编译静态 Lua，避免与 CE 内置 Lua 运行时（5.3 修改分支）发生 ABI 冲突导致加载崩溃
+        $libsDir = Join-Path $env:GITHUB_WORKSPACE 'libs'
+        if (-not (Test-Path (Join-Path $libsDir 'lua53-32.lib'))) { Write-Error 'Missing libs\lua53-32.lib (Cheat Engine Lua import library)'; exit 1 }
+        if (-not (Test-Path (Join-Path $libsDir 'lua53-64.lib'))) { Write-Error 'Missing libs\lua53-64.lib (Cheat Engine Lua import library)'; exit 1 }
         Write-Host 'libs content:'
         Get-ChildItem -Path $libsDir -Force | Format-Table Name,Length
 
