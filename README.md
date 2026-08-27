@@ -145,6 +145,11 @@ CE-MCP-Plugin是一个为Cheat Engine开发的AI集成插件，允许Cheat Engin
    - 启动Cheat Engine
    - 在Cheat Engine主菜单中找到"CE-MCP-Plugin"选项
 
+3. 安装Python MCP桥（可选，推荐）：
+   - 需要Python 3.10+
+   - 安装依赖：`pip install "mcp[cli]"`
+   - 详见下方"使用Python MCP桥"章节
+
 ## 使用说明
 
 ### 1. 配置AI服务器
@@ -188,6 +193,32 @@ local result = aiSendCommand("GET_HEALTH:player1")
 print(result)
 ```
 
+### 5. 使用Python MCP桥（Streamable HTTP）
+
+仓库附带`bridge/mcp_bridge.py`，将插件命令封装为标准MCP工具（Streamable HTTP传输），让AI助手通过MCP协议直接调用CE功能，无需自行实现TCP协议。
+
+```
+AI助手（MCP客户端）──Streamable HTTP──> 桥 (127.0.0.1:8080) ──TCP──> CE插件 (127.0.0.1:8888)
+```
+
+使用步骤：
+
+1. 安装Python 3.10+与依赖：
+   ```
+   pip install "mcp[cli]"
+   ```
+2. 启动MCP桥：
+   ```
+   python bridge/mcp_bridge.py
+   ```
+   桥默认监听`http://127.0.0.1:8080/mcp`，并自动连接CE插件（127.0.0.1:8888）。
+3. 在AI客户端（如Claude Desktop、Cline、VS Code等）中配置MCP服务器：
+   - 传输方式：Streamable HTTP
+   - URL：`http://127.0.0.1:8080/mcp`
+4. AI即可调用全部CE命令（SHOW_MESSAGE、READ_MEMORY、WRITE_MEMORY、PROCESS_LIST等，共77个），命令执行结果会通过TCP回传给AI。
+
+> 提示：插件主菜单"CE-MCP-Plugin"（Ctrl+A）可查看当前连接状态、已处理命令数及连接指引。
+
 ## 开发说明
 
 ### 项目结构
@@ -209,6 +240,8 @@ CE-MCP-Plugin/
 ├── lauxlib.h                # Lua辅助库头文件
 ├── luaconf.h                # Lua配置头文件
 ├── example-c.vcproj         # 示例项目文件
+├── bridge/
+│   └── mcp_bridge.py        # Python MCP桥（Streamable HTTP，127.0.0.1:8080）
 ├── example-c.vcxproj.filters # 示例项目过滤器
 └── README.md                # 项目文档
 ```
@@ -245,6 +278,13 @@ void ExecuteAICommand(AICommand* cmd) {
 本项目采用MIT许可证，详见LICENSE文件。
 
 ## 更新日志
+
+### v1.1 (2026-08-27)
+- 新增Python MCP桥（`bridge/mcp_bridge.py`）：通过Streamable HTTP将插件命令暴露为77个MCP工具
+- 插件增加命令回包机制：命令执行结果通过TCP回传，AI可获取实际结果
+- 插件主菜单弹窗显示MCP服务状态（端口、连接状态、已处理命令数）与连接指引
+- 修复CE加载插件时因静态链接Lua导致的Access violation（改用CE官方导入库动态导入）
+- 支持Win32/x64双平台CI构建
 
 ### v1.0 (2026-01-04)
 - 初始版本发布
