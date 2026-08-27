@@ -24,6 +24,7 @@ BOOL isRunning = FALSE;
 CRITICAL_SECTION aiCriticalSection; // Critical section for thread synchronization
 char aiServerIP[16] = "127.0.0.1"; // Default AI server IP
 int aiServerPort = 8888; // Default AI server port
+volatile LONG aiCommandCount = 0; // 已处理的 AI 命令计数（线程安全）
 
 // AI command structure
 typedef struct {
@@ -1513,6 +1514,7 @@ DWORD WINAPI AICommunicationThread(LPVOID lpParam) {
             // Parse and execute command
             AICommand cmd;
             if (ParseAICommand(recvBuffer, &cmd)) {
+                InterlockedIncrement(&aiCommandCount); // 命令计数 +1
                 ExecuteAICommand(&cmd);
             }
         } else if (iResult == 0) {
@@ -1539,13 +1541,43 @@ DWORD WINAPI AICommunicationThread(LPVOID lpParam) {
     return 0;
 }
 
-// Main menu plugin callback
+// Main menu plugin callback: 显示 MCP 服务状态与连接指引
 void __stdcall mainmenuplugin(void) {
-    Exported.ShowMessage("CE-MCP-Plugin Main Menu");
-    return;
+    char buffer[1024];
+    BOOL isConnected;
+
+    // 线程安全读取当前连接状态
+    EnterCriticalSection(&aiCriticalSection);
+    isConnected = (aiSocket != INVALID_SOCKET);
+    LeaveCriticalSection(&aiCriticalSection);
+
+    sprintf_s(buffer, sizeof(buffer),
+        "CE-MCP-Plugin v1.0\r\n"
+        "==============================\r\n"
+        "MCP Server     : %s:%d (TCP)\r\n"
+        "Connection     : %s\r\n"
+        "Commands handled: %ld\r\n"
+        "Comm thread    : %s\r\n"
+        "\r\n"
+        "== How to connect ==\r\n"
+        "1. Start an MCP/TCP server listening on %s:%d\r\n"
+        "   (this plugin is a TCP client, NOT an HTTP service)\r\n"
+        "2. The plugin auto-connects and retries until server is up\r\n"
+        "3. Point your AI client (MCP config) at:\r\n"
+        "   tcp://%s:%d\r\n"
+        "\r\n"
+        "AI can then send commands like:\r\n"
+        "  SHOW_MESSAGE:Hello  |  READ_MEMORY:0x400000,byte",
+        aiServerIP, aiServerPort,
+        isConnected ? "CONNECTED" : "NOT CONNECTED (waiting for MCP server)",
+        aiCommandCount,
+        isRunning ? "running" : "stopped",
+        aiServerIP, aiServerPort,
+        aiServerIP, aiServerPort);
+    Exported.ShowMessage(buffer);
 }
 
-    BOOL APIENTRY DllMain(HINSTANCE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
+BOOL APIENTRY DllMain(HINSTANCE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     switch (ul_reason_for_call) {
         case DLL_PROCESS_ATTACH:
             // Initialize Winsock when DLL is loaded
