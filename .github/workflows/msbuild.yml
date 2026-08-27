@@ -15,23 +15,19 @@ on:
         options:
         - Release
         - Debug
-      platform:
-        description: 'Build Platform'
-        required: true
-        default: 'Win32'
-        type: choice
-        options:
-        - Win32
-        - x64
 
 jobs:
   build:
     runs-on: windows-latest
-    
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [Win32, x64]
+
     env:
       SOLUTION_FILE_PATH: CE-MCP-Plugin.sln
       BUILD_CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
-      BUILD_PLATFORM: ${{ github.event.inputs.platform || 'Win32' }}
+      BUILD_PLATFORM: ${{ matrix.platform }}
       VISUAL_STUDIO_VERSION: '17.0' # Visual Studio 2022
 
     steps:
@@ -44,7 +40,7 @@ jobs:
       uses: microsoft/setup-msbuild@v2
       with:
         vs-version: ${{ env.VISUAL_STUDIO_VERSION }}
-        msbuild-architecture: ${{ env.BUILD_PLATFORM }}
+        msbuild-architecture: ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
 
     - name: Build Lua 5.3 static libraries
       shell: pwsh
@@ -88,12 +84,16 @@ jobs:
         Write-Host "Using vcvars32: $vcvars32"
         Write-Host "Using vcvars64: $vcvars64"
         
+        # 根据构建配置选择 CRT 运行时（Debug=/MTd，Release=/MT），避免 Debug 构建时 LNK4098 CRT 冲突
+        $crtFlag = if ('${{ env.BUILD_CONFIGURATION }}' -eq 'Debug') { '/MTd' } else { '/MT' }
+        Write-Host "Using CRT flag: $crtFlag for configuration ${{ env.BUILD_CONFIGURATION }}"
+        
         # Build Win32 static library
-        cmd /c ('"' + $vcvars32 + '" && cl /MT /O2 /c /DLUA_BUILD_AS_DLL *.c && lib /OUT:lua53-static.lib *.obj && copy lua53-static.lib "' + $libsDir + '\lua53-32.lib"')
+        cmd /c ('"' + $vcvars32 + '" && cl ' + $crtFlag + ' /O2 /c /DLUA_BUILD_AS_DLL *.c && lib /OUT:lua53-static.lib *.obj && copy lua53-static.lib "' + $libsDir + '\lua53-32.lib"')
         
         # Build x64 static library
         Write-Host 'Building Lua 5.3.6 for x64...'
-        cmd /c ('"' + $vcvars64 + '" && cl /MT /O2 /c /DLUA_BUILD_AS_DLL *.c && lib /OUT:lua53-static.lib *.obj && copy lua53-static.lib "' + $libsDir + '\lua53-64.lib"')
+        cmd /c ('"' + $vcvars64 + '" && cl ' + $crtFlag + ' /O2 /c /DLUA_BUILD_AS_DLL *.c && lib /OUT:lua53-static.lib *.obj && copy lua53-static.lib "' + $libsDir + '\lua53-64.lib"')
         
         Pop-Location
         
