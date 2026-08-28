@@ -1,0 +1,15 @@
+# Python (bridge)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Visual Studio 构建产物
+x64/
+Debug/
+Release/
+*.user
+.vs/
+
+# 用户本地 Cheat Engine 目录（含 lua53 DLL 等，不提交）
+Cheat Engine/
