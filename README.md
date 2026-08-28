@@ -146,8 +146,9 @@ CE-MCP-Plugin是一个为Cheat Engine开发的AI集成插件，允许Cheat Engin
    - 在Cheat Engine主菜单中找到"CE-MCP-Plugin"选项
 
 3. 安装Python MCP桥（可选，推荐）：
-   - 需要Python 3.10+
-   - 安装依赖：`pip install "mcp[cli]"`
+   - 需要Python 3.10+，推荐使用[uv](https://docs.astral.sh/uv/)管理依赖
+   - uv方式：`cd bridge && uv sync`
+   - 或pip方式：`pip install "mcp[cli]"`
    - 详见下方"使用Python MCP桥"章节
 
 ## 使用说明
@@ -203,14 +204,12 @@ AI助手（MCP客户端）──Streamable HTTP──> 桥 (127.0.0.1:8080) ─�
 
 使用步骤：
 
-1. 安装Python 3.10+与依赖：
-   ```
-   pip install "mcp[cli]"
-   ```
+1. 安装依赖（在`bridge/`目录下）：
+   - uv（推荐）：`uv sync`
+   - 或pip：`pip install "mcp[cli]"`
 2. 启动MCP桥：
-   ```
-   python bridge/mcp_bridge.py
-   ```
+   - uv：`uv run python mcp_bridge.py`
+   - 或pip：`python mcp_bridge.py`
    桥默认监听`http://127.0.0.1:8080/mcp`，并自动连接CE插件（127.0.0.1:8888）。
 3. 在AI客户端（如Claude Desktop、Cline、VS Code等）中配置MCP服务器：
    - 传输方式：Streamable HTTP
@@ -241,7 +240,8 @@ CE-MCP-Plugin/
 ├── luaconf.h                # Lua配置头文件
 ├── example-c.vcproj         # 示例项目文件
 ├── bridge/
-│   └── mcp_bridge.py        # Python MCP桥（Streamable HTTP，127.0.0.1:8080）
+│   ├── mcp_bridge.py        # Python MCP桥（Streamable HTTP，127.0.0.1:8080）
+│   └── pyproject.toml       # uv 依赖配置
 ├── example-c.vcxproj.filters # 示例项目过滤器
 └── README.md                # 项目文档
 ```

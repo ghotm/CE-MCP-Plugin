@@ -1,0 +1,8 @@
+[project]
+name = "ce-mcp-bridge"
+version = "1.1.0"
+description = "CE-MCP-Plugin 的 Python MCP 桥（Streamable HTTP），将 CE 命令封装为 MCP 工具"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=2.0.0",
+]
