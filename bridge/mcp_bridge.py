@@ -8,21 +8,23 @@ CE-MCP-Plugin 桥接服务器（Streamable HTTP MCP Server）
 
 协议概述
 --------
-- CE-MCP-Plugin 插件作为 TCP **客户端**，启动后自动连接本机 127.0.0.1:8888
-  （见 /workspace/CE-MCP-Plugin/mcp.json 中的 mcp.server 字段）。
+- CE-MCP-Plugin 插件是 TCP **客户端**，启动后自动连接本机 127.0.0.1:8888
+  并无限重试（见 /workspace/CE-MCP-Plugin/mcp.json 中的 mcp.server 字段）。
+- 本桥在 127.0.0.1:8888 扮演 TCP **服务器**（即原作者设计中"AI 服务器"的
+  角色），接受插件的连接，避免"双方都是客户端"造成的死锁。
 - 命令通过 TCP 以文本行方式交互：
   * 发送：一行文本命令，以 ``\\n`` 结尾，形如 ``COMMAND:param1,param2`` 或
     无参数命令 ``COMMAND``。
   * 接收：插件执行后回传一行结果文本，以 ``\\n`` 结尾。
-- 本桥是一个 Streamable HTTP MCP 服务器，监听 127.0.0.1:8080，客户端连接
-  URL 为 http://127.0.0.1:8080/mcp。
+- 本桥同时是一个 Streamable HTTP MCP 服务器，监听 127.0.0.1:8080，MCP 客户端
+  连接 URL 为 http://127.0.0.1:8080/mcp。
 
 职责
 ----
 1. 读取 mcp.json 配置，收集全部命令（名称、中文描述、语法）。
 2. 从命令语法（syntax）解析参数名。
 3. 为每个命令动态注册一个 MCP tool。
-4. 通过 TCP 客户端把 MCP 调用转发给 CE 插件，并返回插件的文本响应。
+4. 通过 TCP 服务器连接把 MCP 调用转发给 CE 插件，并返回插件的文本响应。
 
 依赖
 ----
@@ -33,6 +35,7 @@ CE-MCP-Plugin 桥接服务器（Streamable HTTP MCP Server）
 import json
 import socket
 import threading
+import time
 from typing import Annotated, Optional
 
 # pydantic 的 Field，用于给参数补充简短中文描述（mcp 包依赖 pydantic）
@@ -56,14 +59,17 @@ def _load_config(path: str = CONFIG_PATH) -> dict:
 
 _CONFIG = _load_config()
 
-# 插件 TCP 服务器的地址与端口
+# CE 插件要连接的地址与端口（本桥在此监听，扮演插件所连接的"AI 服务器"）
 HOST = _CONFIG.get("mcp", {}).get("server", {}).get("host", "127.0.0.1")
 PORT = _CONFIG.get("mcp", {}).get("server", {}).get("port", 8888)
 
-# 连接与接收超时（秒）
+# 接收响应超时（秒）
 SOCKET_TIMEOUT = 10.0
 
-# 桥服务器的监听地址与端口
+# 非阻塞 accept 的短超时（秒）：没有插件连接时快速返回，不阻塞 MCP 调用
+ACCEPT_TIMEOUT = 0.1
+
+# 桥的 MCP 服务器监听地址与端口
 BRIDGE_HOST = "127.0.0.1"
 BRIDGE_PORT = 8080
 
@@ -129,93 +135,147 @@ _COMMANDS = _collect_commands(_CONFIG)
 
 
 # ---------------------------------------------------------------------------
-# TCP 客户端（连接 CE 插件）
+# TCP 服务器（等待 CE 插件连接）
 # ---------------------------------------------------------------------------
 
-# 全局 socket，模块级维护，由 _lock 串行化所有请求
-_sock: Optional[socket.socket] = None
-_connected: bool = False
+# 服务器监听 socket（模块级，只创建一次）
+_server_sock: Optional[socket.socket] = None
+# 当前插件连接 socket（可能为 None）
+_plugin_sock: Optional[socket.socket] = None
 # 串行化所有请求：插件同时只接受一个连接、一次处理一个命令
 _lock = threading.Lock()
 
+try:
+    _server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # 允许端口快速复用，避免重启时 TIME_WAIT 占用
+    _server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    _server_sock.bind((HOST, PORT))
+    _server_sock.listen(1)
+except Exception as e:
+    print(f"[桥] 错误：无法在 {HOST}:{PORT} 创建监听 socket：{e}")
+    _server_sock = None
 
-def _close_socket() -> None:
-    """关闭并清空全局 socket。"""
-    global _sock, _connected
-    if _sock is not None:
+
+def _close_plugin_socket() -> None:
+    """关闭并清空当前插件连接 socket。"""
+    global _plugin_sock
+    if _plugin_sock is not None:
         try:
-            _sock.close()
+            _plugin_sock.close()
         except Exception:
             pass
-    _sock = None
-    _connected = False
+    _plugin_sock = None
 
 
-def _ensure_connected() -> bool:
-    """确保已建立到 CE 插件的 TCP 连接。
+def _ensure_plugin_connected() -> bool:
+    """确保已接受到 CE 插件的连接（带死连接过滤）。
 
-    若 _sock 为 None 则新建连接；连接失败返回 False 并记录原因。
+    - 若当前插件连接存在则视为有效，直接返回 True。
+    - 否则在短超时窗口内循环 accept，并对每个新连接先用 MSG_PEEK 探测活性
+      （peek 不消费数据）：
+      * 抛 BlockingIOError（对端活着但暂无数据）或 recv 到数据 -> 活连接，
+        恢复超时模式并采用为新连接，返回 True；
+      * recv 返回 b""（对端已关闭/EOF）或抛 ConnectionResetError/OSError
+        -> 死连接，close() 丢弃并 continue 继续 accept 下一个；
+      * accept 超时（socket.timeout）-> 返回 False（无连接，不阻塞等待，
+        MCP 调用应立即返回错误而非挂起）。
     """
-    global _sock, _connected
-    if _sock is not None:
-        # 假定已连接；真实断线会在 send/recv 时报错并触发重连
+    global _plugin_sock
+    if _plugin_sock is not None:
+        # 假定连接有效；真实断线会在 send/recv 时报错并触发下次重连
         return True
-    try:
-        s = socket.create_connection((HOST, PORT), timeout=SOCKET_TIMEOUT)
-        s.settimeout(SOCKET_TIMEOUT)
-        _sock = s
-        _connected = True
-        return True
-    except Exception:
-        _close_socket()
+    if _server_sock is None:
         return False
+    # 总等待时长：留出依次丢弃多个死连接的时间，避免整体阻塞
+    deadline = time.monotonic() + ACCEPT_TIMEOUT
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            # 等待窗口耗尽，仍未等到活连接
+            return False
+        _server_sock.settimeout(remaining)
+        try:
+            conn, _addr = _server_sock.accept()
+        except Exception:
+            # accept 超时（socket.timeout，短超时内无插件连上来）或其他异常
+            # （服务器 socket 出错等）均视为无连接，不阻塞等待，立即返回
+            return False
+
+        # 验证连接活性：MSG_PEEK 探测不消费数据
+        alive = False
+        try:
+            conn.setblocking(False)
+            if conn.recv(1, socket.MSG_PEEK) != b"":
+                # 对端已有数据可读（主动发来内容）-> 活连接
+                alive = True
+        except Exception as e:
+            if isinstance(e, BlockingIOError):
+                # 对端活着但暂无数据 -> 活连接
+                alive = True
+            else:
+                # 连接被重置/出错 -> 死连接
+                alive = False
+
+        if not alive:
+            # 死连接：close() 丢弃，继续 accept 下一个
+            try:
+                conn.close()
+            except Exception:
+                pass
+            continue
+
+        # 活连接：恢复接收超时模式并采用
+        conn.settimeout(SOCKET_TIMEOUT)
+        _plugin_sock = conn
+        print(f"CE 插件已连接 ({HOST}:{PORT})")
+        return True
 
 
 def _send_command(cmd_line: str) -> str:
-    """向 CE 插件发送一条命令并返回其文本响应。
+    """向 CE 插件发送一条命令并返回其文本响应（TCP 服务器模式）。
 
     流程：
     1. 加锁串行化。
-    2. 确保连接；失败返回中文错误。
+    2. 确保插件连接；未连接则返回中文错误（不阻塞，accept 最多等 0.1 秒）。
     3. 发送 ``cmd_line + "\\n"``。
     4. 循环 recv 累积 buffer，直到含 ``\\n`` 或超时/出错；取第一个 ``\\n``
        前的内容作为响应（去掉行尾 ``\\r``）。
-    5. 响应为空/超时/断线 -> 关闭 socket（下次请求重连），返回中文错误提示。
+    5. 写或读失败 -> 关闭当前插件连接（下次调用会重新 accept），返回中文错误。
     """
-    global _sock
+    global _plugin_sock
     with _lock:
-        if not _ensure_connected() or _sock is None:
+        if not _ensure_plugin_connected() or _plugin_sock is None:
             return (
-                f"无法连接到 CE 插件 ({HOST}:{PORT})，"
-                "请确认已启动 Cheat Engine 并加载 CE-MCP-Plugin 插件"
+                f"无法连接 CE 插件：桥正在 {HOST}:{PORT} 监听，但插件尚未连上。"
+                "请确认：1) 已在 Cheat Engine 中加载 CE-MCP-Plugin 插件；"
+                "2) 桥先于插件启动（插件会自动重连）。"
             )
 
-        sock = _sock
+        conn = _plugin_sock
 
         # 发送命令
         try:
-            sock.sendall((cmd_line + "\n").encode("utf-8"))
-        except Exception as e:
-            _sock.sendall((cmd_line + "\n").encode("utf-8"))
-        except Exception as e:
-            _close_socket()
-            return f"发送命令到 CE 插件失败: {e}"
+            conn.sendall((cmd_line + "\n").encode("utf-8"))
+        except Exception:
+            _close_plugin_socket()
+            return "与 CE 插件的连接已断开，请检查插件状态（插件会自动重连）"
 
         # 接收响应（累积到出现换行）
         buf = b""
         recv_error = None
         try:
             while b"\n" not in buf:
-                chunk = sock.recv(4096)
+                chunk = conn.recv(4096)
                 if not chunk:
                     # 对端关闭连接
                     break
                 buf += chunk
-        except socket.timeout:
-            # 接收超时：未等到完整的行
-            recv_error = "接收超时"
         except Exception as e:
-            recv_error = f"接收失败: {e}"
+            if isinstance(e, socket.timeout):
+                # 接收超时：未等到完整的行
+                recv_error = "接收超时"
+            else:
+                recv_error = f"接收失败: {e}"
 
         if b"\n" in buf:
             line = buf.split(b"\n", 1)[0]
@@ -223,15 +283,15 @@ def _send_command(cmd_line: str) -> str:
             if text:
                 return text
             # 拿到空行
-            _close_socket()
-            return "CE 插件返回了空响应"
+            _close_plugin_socket()
+            return "CE 插件返回了空响应（插件会自动重连）"
         else:
-            # 超时 / 断线 / 未含换行：关闭并重连
+            # 超时 / 断线 / 未含换行：关闭当前连接，下次调用重新 accept
             partial = buf.decode("utf-8", errors="replace")
-            _close_socket()
+            _close_plugin_socket()
             detail = f"，已收到的内容: {partial!r}" if partial else ""
             reason = recv_error or "连接中断"
-            return f"未收到 CE 插件完整响应（{reason}{detail}）"
+            return f"与 CE 插件的连接已断开，请检查插件状态（插件会自动重连）（{reason}{detail}）"
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +389,8 @@ for _cmd in _COMMANDS:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    # 打印启动日志：桥在 TCP 8888 端扮演服务器，等待插件连接
+    print(f"MCP 桥已启动，等待 CE 插件连接 {HOST}:{PORT} ...")
     # Streamable HTTP 传输，监听 127.0.0.1:8080
-    # 客户端连接 URL 为 http://127.0.0.1:8080/mcp
+    # MCP 客户端连接 URL 为 http://127.0.0.1:8080/mcp
     mcp.run(transport="streamable-http", host=BRIDGE_HOST, port=BRIDGE_PORT)
