@@ -298,6 +298,7 @@ void ExecuteAICommand(AICommand* cmd) {
     
     if (strcmp(cmd->command, "SHOW_MESSAGE") == 0) {
         Exported.ShowMessage(cmd->parameters);
+        SendToServer(cmd->parameters); // 回包确认，避免桥等待响应超时
     } else if (strcmp(cmd->command, "AUTO_ASSEMBLE") == 0) {
         BOOL result = Exported.AutoAssemble(cmd->parameters);
         sprintf_s(message, sizeof(message), "AutoAssemble result: %d", result);
@@ -1629,7 +1630,7 @@ void __stdcall mainmenuplugin(void) {
     LeaveCriticalSection(&aiCriticalSection);
 
     sprintf_s(buffer, sizeof(buffer),
-        "CE-MCP-Plugin v1.0\r\n"
+        "CE-MCP-Plugin v1.1\r\n"
         "==============================\r\n"
         "MCP Server     : %s:%d (TCP)\r\n"
         "Connection     : %s\r\n"
@@ -1637,19 +1638,20 @@ void __stdcall mainmenuplugin(void) {
         "Comm thread    : %s\r\n"
         "\r\n"
         "== How to connect ==\r\n"
-        "1. Start an MCP/TCP server listening on %s:%d\r\n"
-        "   (this plugin is a TCP client, NOT an HTTP service)\r\n"
-        "2. The plugin auto-connects and retries until server is up\r\n"
-        "3. Point your AI client (MCP config) at:\r\n"
-        "   tcp://%s:%d\r\n"
+        "1. This plugin is a TCP CLIENT. The MCP bridge\r\n"
+        "   (bridge/mcp_bridge.py) is the server listening\r\n"
+        "   on %s:%d\r\n"
+        "2. Start the bridge FIRST, then load the plugin in CE;\r\n"
+        "   the plugin auto-connects and retries forever\r\n"
+        "3. Point your AI client (MCP config) at the bridge's\r\n"
+        "   Streamable HTTP URL: http://127.0.0.1:8080/mcp\r\n"
         "\r\n"
         "AI can then send commands like:\r\n"
         "  SHOW_MESSAGE:Hello  |  READ_MEMORY:0x400000,byte",
         aiServerIP, aiServerPort,
-        isConnected ? "CONNECTED" : "NOT CONNECTED (waiting for MCP server)",
+        isConnected ? "CONNECTED" : "NOT CONNECTED (waiting for MCP bridge)",
         aiCommandCount,
-        isRunning ? "running" : "stopped",
-        aiServerIP, aiServerPort,
+        isRunning ? "running (auto-reconnect)" : "stopped",
         aiServerIP, aiServerPort);
     Exported.ShowMessage(buffer);
 }
